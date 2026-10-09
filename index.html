@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ConvertQuest</title>
+<meta name="description" content="Unit conversions for engineers. Fast. Free. Accurate. Level up while you convert.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1033;
+    --bg-2: #2a1a52;
+    --panel: #241646;
+    --ink: #f4f0ff;
+    --muted: #b7a8e0;
+    --pink: #ff3ea5;
+    --cyan: #00e5ff;
+    --yellow: #ffe03a;
+    --green: #3dff6e;
+    --orange: #ff8a1f;
+    --purple: #a66bff;
+    --red: #ff4d4d;
+    --black: #0d0820;
+    --c: var(--cyan); /* active category colour */
+    --pixel: "Press Start 2P", monospace;
+    --term: "VT323", monospace;
+    --ground: 44px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; padding-bottom: var(--ground);
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--term);
+    font-size: 22px;
+    line-height: 1.3;
+    image-rendering: pixelated;
+  }
+  /* starfield */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1;
+    background:
+      radial-gradient(2px 2px at 10% 20%, #fff 50%, transparent 51%),
+      radial-gradient(2px 2px at 80% 10%, var(--cyan) 50%, transparent 51%),
+      radial-gradient(2px 2px at 30% 70%, var(--pink) 50%, transparent 51%),
+      radial-gradient(2px 2px at 60% 40%, #fff 50%, transparent 51%),
+      radial-gradient(2px 2px at 90% 80%, var(--yellow) 50%, transparent 51%),
+      radial-gradient(2px 2px at 45% 15%, #fff 50%, transparent 51%),
+      radial-gradient(2px 2px at 15% 90%, #fff 50%, transparent 51%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+    background-size: 340px 340px, 420px 420px, 280px 280px, 500px 500px, 380px 380px, 260px 260px, 460px 460px, 100% 100%;
+    animation: twinkle 3s steps(2) infinite;
+  }
+  @keyframes twinkle { 50% { opacity: .85; } }
+  /* CRT scanlines */
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 90;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px);
+  }
+
+  /* ---------- pixel helpers ---------- */
+  .px-box {
+    background: var(--panel);
+    border: 4px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--black);
+  }
+  .px-btn {
+    font-family: var(--pixel); font-size: 11px; cursor: pointer;
+    padding: 10px 12px; color: var(--black); background: var(--b, var(--cyan));
+    border: 3px solid var(--black);
+    box-shadow: inset -3px -3px 0 rgba(0,0,0,.3), inset 3px 3px 0 rgba(255,255,255,.4), 4px 4px 0 var(--black);
+    transition: transform .05s;
+  }
+  .px-btn:hover { filter: brightness(1.1); }
+  .px-btn:active { transform: translate(4px, 4px); box-shadow: inset -3px -3px 0 rgba(0,0,0,.3), inset 3px 3px 0 rgba(255,255,255,.4); }
+
+  /* ---------- HUD / NAV ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 30;
+    background: var(--black); border-bottom: 4px solid var(--pink);
+  }
+  .nav-inner {
+    max-width: 1080px; margin: 0 auto; padding: 10px 16px;
+    display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: space-between; align-items: center;
+  }
+  .logo { font-family: var(--pixel); font-size: 13px; color: var(--yellow); text-decoration: none; }
+  .logo span { color: var(--pink); }
+  .hud { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-family: var(--pixel); font-size: 9px; }
+  .hud b { color: var(--yellow); font-weight: 400; }
+  .xpbar { width: 90px; height: 12px; border: 2px solid var(--ink); background: var(--black); position: relative; }
+  .xpbar i { position: absolute; inset: 0 auto 0 0; width: 0; background: repeating-linear-gradient(90deg, var(--green) 0 6px, #22c94f 6px 8px); transition: width .3s steps(5); }
+  .sound { font-family: var(--pixel); font-size: 9px; background: none; border: 2px solid var(--muted); color: var(--muted); padding: 4px 6px; cursor: pointer; }
+  .sound.on { border-color: var(--green); color: var(--green); }
+
+  /* ---------- HERO ---------- */
+  .hero { text-align: center; padding: 70px 16px 40px; }
+  .stage { font-family: var(--pixel); font-size: 11px; color: var(--cyan); letter-spacing: 2px; margin-bottom: 22px; }
+  .hero h1 {
+    font-family: var(--pixel); font-weight: 400;
+    font-size: clamp(22px, 6.5vw, 58px); line-height: 1.25; margin: 0 0 24px;
+    color: var(--yellow);
+    text-shadow: 4px 4px 0 var(--pink), 8px 8px 0 var(--purple), 12px 12px 0 var(--black);
+  }
+  .hero p { font-size: 26px; color: var(--muted); margin: 0 auto 30px; max-width: 640px; }
+  .hero p em { color: var(--green); font-style: normal; }
+  .start { font-size: 14px; --b: var(--yellow); padding: 16px 22px; text-decoration: none; display: inline-block; }
+  .blink { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  section { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  .sec-title { text-align: center; margin: 0 0 30px; }
+  .sec-title h2 { font-family: var(--pixel); font-weight: 400; font-size: clamp(16px, 3.5vw, 24px); color: var(--cyan); margin: 0; text-shadow: 3px 3px 0 var(--black); }
+  .sec-title small { display: block; font-size: 20px; color: var(--muted); margin-top: 10px; }
+
+  /* ---------- CONVERTER ---------- */
+  #converter { padding-top: 40px; padding-bottom: 80px; }
+  .converter { max-width: 720px; margin: 0 auto; padding: 24px; position: relative; border-color: var(--c); transition: border-color .2s; }
+  .screen-head {
+    display: flex; justify-content: space-between; font-family: var(--pixel); font-size: 10px;
+    color: var(--c); margin-bottom: 18px; gap: 10px; flex-wrap: wrap;
+  }
+  .tabs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+  .tab { --b: var(--tc); opacity: .7; }
+  .tab.active { opacity: 1; outline: 3px dashed var(--ink); outline-offset: 3px; }
+  .row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; }
+  .col { display: flex; flex-direction: column; gap: 10px; }
+  input, select {
+    width: 100%; padding: 8px 12px; font-family: var(--term); font-size: 28px;
+    background: var(--black); color: var(--green);
+    border: 3px solid var(--muted); border-radius: 0;
+  }
+  select { font-size: 24px; color: var(--ink); cursor: pointer; }
+  input:focus, select:focus { outline: none; border-color: var(--c); }
+  input[readonly] { color: var(--yellow); border-color: var(--c); }
+  .swap { --b: var(--pink); font-size: 16px; padding: 10px 14px; }
+  .result {
+    margin-top: 18px; padding: 10px 14px; background: var(--black);
+    border-left: 6px solid var(--c); color: var(--green); font-size: 24px; min-height: 48px;
+  }
+  .result::before { content: "> "; color: var(--c); }
+  .formula { font-size: 24px; color: var(--yellow); margin: 0 0 18px; padding: 8px 12px; border: 2px dashed var(--c); }
+  label { font-family: var(--pixel); font-size: 9px; color: var(--muted); }
+  .mech { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .mech .full { grid-column: 1 / -1; }
+  .hidden { display: none; }
+
+  .float-xp {
+    position: absolute; font-family: var(--pixel); font-size: 14px; color: var(--yellow);
+    text-shadow: 3px 3px 0 var(--black); pointer-events: none; z-index: 5;
+    animation: floatUp 1s steps(10) forwards;
+  }
+  @keyframes floatUp { to { transform: translateY(-60px); opacity: 0; } }
+
+  .levelup {
+    position: fixed; left: 50%; top: 40%; z-index: 80; transform: translate(-50%, -50%);
+    font-family: var(--pixel); font-size: clamp(20px, 6vw, 44px); color: var(--yellow);
+    text-shadow: 4px 4px 0 var(--pink), 8px 8px 0 var(--black);
+    background: rgba(13,8,32,.85); padding: 26px 30px; border: 4px solid var(--yellow);
+    text-align: center; pointer-events: none; animation: lvl 1.8s steps(1) forwards;
+  }
+  .levelup small { display: block; font-size: 12px; color: var(--cyan); margin-top: 14px; text-shadow: none; }
+  @keyframes lvl { 0%, 20%, 40% { opacity: 1; } 10%, 30% { opacity: 0; } 90% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ---------- POWER-UPS (formulas) ---------- */
+  #powerups { padding-bottom: 80px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 22px; }
+  .card { padding: 18px; border-color: var(--cc); }
+  .card .ico { font-size: 34px; margin-bottom: 8px; }
+  .card h3 { font-family: var(--pixel); font-weight: 400; font-size: 11px; color: var(--cc); margin: 0 0 10px; }
+  .card code { display: block; font-family: var(--term); font-size: 28px; color: var(--yellow); margin-bottom: 6px; }
+  .card p { margin: 0; font-size: 20px; color: var(--muted); }
+  .card:hover { transform: translate(-2px, -2px); box-shadow: 10px 10px 0 var(--cc); }
+
+  /* ---------- PRICING ---------- */
+  #pricing { padding-bottom: 90px; }
+  .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 28px; max-width: 780px; margin: 0 auto; }
+  .plan { padding: 26px; text-align: center; }
+  .plan.featured { border-color: var(--yellow); box-shadow: 8px 8px 0 var(--pink); }
+  .plan h3 { font-family: var(--pixel); font-weight: 400; font-size: 13px; margin: 0 0 6px; color: var(--cyan); }
+  .plan.featured h3 { color: var(--yellow); }
+  .plan .sub { font-size: 20px; color: var(--muted); }
+  .price { font-family: var(--pixel); font-size: 30px; margin: 16px 0 18px; }
+  .price span { font-size: 11px; color: var(--muted); }
+  .plan ul { list-style: none; padding: 0; margin: 0 0 24px; text-align: left; font-size: 22px; }
+  .plan li { padding: 4px 0; }
+  .plan li::before { content: "★ "; color: var(--yellow); }
+  .plan .px-btn { text-decoration: none; display: inline-block; }
+
+  footer { text-align: center; padding: 26px 16px 34px; font-family: var(--pixel); font-size: 10px; color: var(--muted); line-height: 2; }
+  footer b { color: var(--pink); font-weight: 400; }
+
+  /* ---------- GROUND + HERO SPRITE ---------- */
+  .ground {
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--ground); z-index: 40;
+    background:
+      linear-gradient(var(--green) 0 8px, #1b9e3e 8px 12px, transparent 12px),
+      repeating-linear-gradient(90deg, transparent 0 30px, #3b1f0f 30px 32px),
+      repeating-linear-gradient(0deg, #8a4b22 0 14px, #3b1f0f 14px 16px);
+    border-top: 3px solid var(--black);
+  }
+  .bit {
+    position: fixed; bottom: calc(var(--ground) - 2px); left: 0; z-index: 41;
+    width: 48px; height: 56px; pointer-events: none;
+  }
+  .bit svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
+  .bit.jump svg { animation: jump .55s steps(8); }
+  @keyframes jump { 50% { transform: translateY(-46px); } }
+  .coin {
+    position: fixed; z-index: 41; width: 20px; height: 24px; bottom: calc(var(--ground) + 60px);
+    background: var(--yellow); border: 3px solid var(--orange); border-radius: 0;
+    box-shadow: inset 3px 0 0 #fff6a8; pointer-events: none;
+    animation: coinPop .6s steps(6) forwards;
+  }
+  @keyframes coinPop { 0% { transform: translateY(0) scaleX(1); } 50% { transform: translateY(-30px) scaleX(.3); } 100% { transform: translateY(-50px) scaleX(1); opacity: 0; } }
+
+  @media (max-width: 600px) {
+    body { font-size: 20px; }
+    .row { grid-template-columns: 1fr; }
+    .swap { justify-self: center; }
+    .mech { grid-template-columns: 1fr; }
+    .converter { padding: 16px; }
+    .hud { font-size: 8px; gap: 6px 12px; }
+    .xpbar { width: 60px; }
+    .hero { padding-top: 46px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#">CONVERT<span>QUEST</span></a>
+    <div class="hud" aria-live="polite">
+      <span>LV <b id="lv">01</b></span>
+      <span style="display:flex;align-items:center;gap:6px">XP <span class="xpbar"><i id="xpfill"></i></span></span>
+      <span>SCORE <b id="score">000000</b></span>
+      <span>HI <b id="hi">000000</b></span>
+      <button class="sound" id="sound" aria-pressed="false">♪ OFF</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="stage">WORLD 1 · STAGE 1</div>
+  <h1>CONVERT<br>QUEST</h1>
+  <p>Unit conversions for engineers. <em>Fast. Free. Accurate.</em><br>Every conversion earns XP. How high can you level up?</p>
+  <a class="px-btn start" href="#converter"><span class="blink">▶</span> PRESS START</a>
+</header>
+
+<section id="converter">
+  <div class="sec-title">
+    <h2>SELECT LEVEL</h2>
+    <small>Length, mass, pressure, energy, temperature and mechanical power</small>
+  </div>
+  <div class="converter px-box" id="convBox">
+    <div class="screen-head">
+      <span id="levelName">LEVEL 1-1 · LENGTH</span>
+      <span>+10 XP / CONVERSION</span>
+    </div>
+    <div class="tabs" id="tabs"></div>
+
+    <div id="unitPanel">
+      <div class="row">
+        <div class="col">
+          <input id="fromVal" type="number" value="1" step="any" aria-label="From value">
+          <select id="fromUnit" aria-label="From unit"></select>
+        </div>
+        <button class="px-btn swap" id="swap" title="Swap units" aria-label="Swap units">⇄</button>
+        <div class="col">
+          <input id="toVal" type="number" readonly aria-label="Result">
+          <select id="toUnit" aria-label="To unit"></select>
+        </div>
+      </div>
+      <div class="result" id="result"></div>
+    </div>
+
+    <div id="mechPanel" class="hidden">
+      <p class="formula">P = T × ω &nbsp; where ω = 2π · n / 60</p>
+      <div class="mech">
+        <div class="col">
+          <label for="torque">TORQUE · T</label>
+          <input id="torque" type="number" value="100" step="any">
+          <select id="torqueUnit">
+            <option value="1">N·m</option>
+            <option value="1.3558179483">lbf·ft</option>
+            <option value="0.1129848290">lbf·in</option>
+            <option value="9.80665">kgf·m</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="rpm">SPEED · n</label>
+          <input id="rpm" type="number" value="3000" step="any">
+          <select id="speedUnit">
+            <option value="rpm">rpm</option>
+            <option value="rad">rad/s</option>
+          </select>
+        </div>
+        <div class="col full">
+          <label for="power">POWER · P</label>
+          <div class="row" style="grid-template-columns: 1fr 1fr;">
+            <input id="power" type="number" readonly>
+            <select id="powerUnit">
+              <option value="1">W</option>
+              <option value="1000" selected>kW</option>
+              <option value="745.69987158">hp (mechanical)</option>
+              <option value="735.49875">PS (metric hp)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="result" id="mechResult"></div>
+    </div>
+  </div>
+</section>
+
+<section id="powerups">
+  <div class="sec-title">
+    <h2>POWER-UPS</h2>
+    <small>Formulas every engineer should collect</small>
+  </div>
+  <div class="cards">
+    <div class="card px-box" style="--cc: var(--cyan)"><div class="ico">⚙️</div><h3>SHAFT POWER</h3><code>P = T · ω</code><p>Torque × angular velocity. ω = 2πn/60 for rpm.</p></div>
+    <div class="card px-box" style="--cc: var(--purple)"><div class="ico">🔩</div><h3>STRESS</h3><code>σ = F / A</code><p>1 MPa = 1 N/mm².</p></div>
+    <div class="card px-box" style="--cc: var(--pink)"><div class="ico">📏</div><h3>HOOKE'S LAW</h3><code>σ = E · ε</code><p>Steel: E ≈ 200 GPa.</p></div>
+    <div class="card px-box" style="--cc: var(--yellow)"><div class="ico">⚡</div><h3>KINETIC ENERGY</h3><code>E = ½ · m · v²</code><p>kg and m/s give joules.</p></div>
+    <div class="card px-box" style="--cc: var(--red)"><div class="ico">🔥</div><h3>HEAT</h3><code>Q = m · c · ΔT</code><p>Water: c ≈ 4.186 kJ/(kg·K).</p></div>
+    <div class="card px-box" style="--cc: var(--green)"><div class="ico">🌍</div><h3>GRAVITY</h3><code>g = 9.80665 m/s²</code><p>1 kgf = 9.80665 N.</p></div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="sec-title">
+    <h2>SELECT PLAYER</h2>
+    <small>Pick your plan</small>
+  </div>
+  <div class="plans">
+    <div class="plan px-box">
+      <h3>STUDENT</h3>
+      <div class="sub">FREE PLAY</div>
+      <p class="price">$0</p>
+      <ul>
+        <li>All 6 levels unlocked</li>
+        <li>Unlimited conversions</li>
+        <li>Works on mobile</li>
+      </ul>
+      <a class="px-btn" style="--b: var(--cyan)" href="#converter">PLAY FREE</a>
+    </div>
+    <div class="plan px-box featured">
+      <h3>PRO</h3>
+      <div class="sub">INSERT COIN</div>
+      <p class="price">$4<span>/MO</span></p>
+      <ul>
+        <li>Everything in Student</li>
+        <li>Saved conversion history</li>
+        <li>Custom units &amp; precision</li>
+        <li>Priority support</li>
+      </ul>
+      <a class="px-btn" style="--b: var(--yellow)" href="#converter">INSERT COIN</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span class="blink">GAME OVER?</span> ▶ CONTINUE<br>
+  © <span id="year"></span> CONVERT<b>QUEST</b> · BUILT WITH CLAUDE CODE
+</footer>
+
+<div class="ground" aria-hidden="true"></div>
+<div class="bit" id="bit" aria-hidden="true"></div>
+
+<script>
+  // ---------- Converter data: factors convert each unit TO the category's base unit ----------
+  const CATEGORIES = {
+    Length:      { color: "--cyan",   units: { mm: 0.001, cm: 0.01, m: 1, km: 1000, in: 0.0254, ft: 0.3048, yd: 0.9144, mi: 1609.344 }, from: "mm", to: "cm" },
+    Mass:        { color: "--green",  units: { mg: 1e-6, g: 0.001, kg: 1, t: 1000, oz: 0.028349523125, lb: 0.45359237 }, from: "kg", to: "lb" },
+    Pressure:    { color: "--purple", units: { Pa: 1, kPa: 1000, MPa: 1e6, bar: 1e5, atm: 101325, psi: 6894.757293168, mmHg: 133.322387415 }, from: "bar", to: "psi" },
+    Energy:      { color: "--yellow", units: { J: 1, kJ: 1000, MJ: 1e6, cal: 4.184, kcal: 4184, Wh: 3600, kWh: 3.6e6, BTU: 1055.05585262 }, from: "kWh", to: "MJ" },
+    Temperature: { color: "--red",    units: { "°C": null, "°F": null, K: null }, from: "°C", to: "°F" },
+    Mechanical:  { color: "--orange", special: true }
+  };
+  const toC = { "°C": v => v, "°F": v => (v - 32) * 5 / 9, K: v => v - 273.15 };
+  const fromC = { "°C": v => v, "°F": v => v * 9 / 5 + 32, K: v => v + 273.15 };
+
+  const $ = id => document.getElementById(id);
+  let current = "Length";
+
+  function fmt(n) {
+    if (!isFinite(n)) return "";
+    if (n === 0) return "0";
+    const abs = Math.abs(n);
+    if (abs >= 1e9 || abs < 1e-6) return n.toExponential(6).replace(/\.?0+e/, "e");
+    return String(parseFloat(n.toPrecision(10)));
+  }
+
+  function buildTabs() {
+    Object.entries(CATEGORIES).forEach(([name, cat], i) => {
+      const b = document.createElement("button");
+      b.className = "px-btn tab";
+      b.dataset.name = name;
+      b.style.setProperty("--tc", `var(${cat.color})`);
+      b.textContent = `1-${i + 1} ${name.toUpperCase()}`;
+      b.onclick = () => { selectCategory(name); scheduleXP(); };
+      $("tabs").appendChild(b);
+    });
+  }
+
+  function selectCategory(name) {
+    current = name;
+    const cat = CATEGORIES[name];
+    const idx = Object.keys(CATEGORIES).indexOf(name) + 1;
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.name === name));
+    document.documentElement.style.setProperty("--c", `var(${cat.color})`);
+    $("levelName").textContent = `LEVEL 1-${idx} · ${name.toUpperCase()}`;
+    $("unitPanel").classList.toggle("hidden", !!cat.special);
+    $("mechPanel").classList.toggle("hidden", !cat.special);
+    if (cat.special) { calcMech(); return; }
+    ["fromUnit", "toUnit"].forEach(id => {
+      const sel = $(id);
+      sel.innerHTML = "";
+      Object.keys(cat.units).forEach(u => sel.add(new Option(u, u)));
+    });
+    $("fromUnit").value = cat.from;
+    $("toUnit").value = cat.to;
+    convert();
+  }
+
+  function convert() {
+    const v = parseFloat($("fromVal").value);
+    const from = $("fromUnit").value, to = $("toUnit").value;
+    if (isNaN(v)) { $("toVal").value = ""; $("result").textContent = ""; return; }
+    const out = current === "Temperature"
+      ? fromC[to](toC[from](v))
+      : v * CATEGORIES[current].units[from] / CATEGORIES[current].units[to];
+    $("toVal").value = fmt(out);
+    $("result").textContent = `${fmt(v)} ${from} = ${fmt(out)} ${to}`;
+  }
+
+  function calcMech() {
+    const T = parseFloat($("torque").value) * parseFloat($("torqueUnit").value); // N·m
+    const s = parseFloat($("rpm").value);
+    const omega = $("speedUnit").value === "rpm" ? s * 2 * Math.PI / 60 : s;  // rad/s
+    if (isNaN(T) || isNaN(omega)) { $("power").value = ""; $("mechResult").textContent = ""; return; }
+    const P = T * omega;
+    const sel = $("powerUnit");
+    const out = P / parseFloat(sel.value);
+    $("power").value = fmt(out);
+    $("mechResult").textContent = `ω = ${fmt(omega)} rad/s → P = ${fmt(P)} W = ${fmt(out)} ${sel.selectedOptions[0].text}`;
+  }
+
+  // ---------- Game layer: XP, levels, high score ----------
+  const store = {
+    get(k) { try { return parseInt(localStorage.getItem(k)) || 0; } catch { return 0; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+  };
+  let xp = 0, hi = store.get("cq-hi");
+  const pad = (n, w) => String(n).padStart(w, "0");
+
+  function renderHUD() {
+    $("lv").textContent = pad(Math.floor(xp / 100) + 1, 2);
+    $("xpfill").style.width = `${xp % 100}%`;
+    $("score").textContent = pad(xp * 10, 6);
+    $("hi").textContent = pad(hi, 6);
+  }
+
+  let xpTimer;
+  function scheduleXP() { clearTimeout(xpTimer); xpTimer = setTimeout(awardXP, 600); }
+
+  function awardXP() {
+    const before = Math.floor(xp / 100);
+    xp += 10;
+    if (xp * 10 > hi) { hi = xp * 10; store.set("cq-hi", hi); }
+    renderHUD();
+
+    // floating "+10 XP" over the converter
+    const box = $("convBox");
+    const f = document.createElement("div");
+    f.className = "float-xp";
+    f.textContent = "+10 XP";
+    f.style.right = "24px";
+    f.style.top = "50px";
+    box.appendChild(f);
+    f.addEventListener("animationend", () => f.remove());
+
+    heroJump();
+    if (Math.floor(xp / 100) > before) levelUp(); else sfx.coin();
+  }
+
+  function levelUp() {
+    sfx.levelUp();
+    const el = document.createElement("div");
+    el.className = "levelup";
+    el.innerHTML = `LEVEL UP!<small>YOU ARE NOW LV ${pad(Math.floor(xp / 100) + 1, 2)}</small>`;
+    document.body.appendChild(el);
+    el.addEventListener("animationend", () => el.remove());
+  }
+
+  // ---------- 8-bit sound effects (WebAudio square waves, off by default) ----------
+  let soundOn = false, actx = null;
+  function tone(freq, start, dur) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = "square"; o.frequency.value = freq;
+    g.gain.setValueAtTime(.08, actx.currentTime + start);
+    g.gain.exponentialRampToValueAtTime(.001, actx.currentTime + start + dur);
+    o.connect(g).connect(actx.destination);
+    o.start(actx.currentTime + start); o.stop(actx.currentTime + start + dur);
+  }
+  const sfx = {
+    coin() { if (soundOn) { tone(988, 0, .08); tone(1319, .08, .25); } },
+    jump() { if (soundOn) { tone(440, 0, .05); tone(660, .05, .1); } },
+    levelUp() { if (soundOn) [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .1, .18)); }
+  };
+  $("sound").addEventListener("click", () => {
+    soundOn = !soundOn;
+    if (soundOn && !actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    $("sound").textContent = soundOn ? "♪ ON" : "♪ OFF";
+    $("sound").classList.toggle("on", soundOn);
+    $("sound").setAttribute("aria-pressed", soundOn);
+    sfx.coin();
+  });
+
+  // ---------- "Bit", the pixel robot that walks along the ground ----------
+  const PALETTE = { Y: "#ffe03a", G: "#8d8aa8", C: "#00e5ff", D: "#0d0820", W: "#ffffff", P: "#ff3ea5", K: "#3a2a6b" };
+  const TOP = [
+    ".....Y......",
+    ".....G......",
+    "..CCCCCCCC..",
+    "..CDDDDDDC..",
+    "..CDWDDWDC..",
+    "..CDDDDDDC..",
+    "..CCCCCCCC..",
+    "...PPPPPP...",
+    ".GPPYYPPPPG.",
+    ".G.PPPPPP.G.",
+    "...PPPPPP..."
+  ];
+  const LEGS = [
+    ["...GG..GG...", "...GG..GG...", "..KKK..KKK.."],
+    ["....GGGG....", "...GG..GG...", "..KK....KK.."]
+  ];
+  function sprite(rows) {
+    let rects = "";
+    rows.forEach((r, y) => [...r].forEach((ch, x) => {
+      if (PALETTE[ch]) rects += `<rect x="${x}" y="${y}" width="1" height="1" fill="${PALETTE[ch]}"/>`;
+    }));
+    return `<svg viewBox="0 0 12 14">${rects}</svg>`;
+  }
+  const FRAMES = LEGS.map(l => sprite([...TOP, ...l]));
+  const bit = $("bit");
+  let bx = 40, dir = 1, frame = 0, last = performance.now(), frameClock = 0;
+  bit.innerHTML = FRAMES[0];
+
+  function walk(now) {
+    const dt = Math.min(now - last, 50) / 1000; last = now;
+    const maxX = innerWidth - 48;
+    bx += dir * 70 * dt;
+    if (bx > maxX) { bx = maxX; dir = -1; }
+    if (bx < 0) { bx = 0; dir = 1; }
+    frameClock += dt;
+    if (frameClock > .18) { frameClock = 0; frame ^= 1; bit.innerHTML = FRAMES[frame]; }
+    bit.style.transform = `translateX(${bx}px) scaleX(${dir})`;
+    requestAnimationFrame(walk);
+  }
+  requestAnimationFrame(walk);
+
+  function heroJump() {
+    sfx.jump();
+    bit.classList.remove("jump"); void bit.offsetWidth; bit.classList.add("jump");
+    const c = document.createElement("div");
+    c.className = "coin";
+    c.style.left = `${bx + 14}px`;
+    document.body.appendChild(c);
+    c.addEventListener("animationend", () => c.remove());
+  }
+
+  // ---------- Wiring ----------
+  $("fromVal").addEventListener("input", () => { convert(); scheduleXP(); });
+  ["fromUnit", "toUnit"].forEach(id => $(id).addEventListener("change", () => { convert(); scheduleXP(); }));
+  $("swap").addEventListener("click", () => {
+    const f = $("fromUnit").value;
+    $("fromUnit").value = $("toUnit").value;
+    $("toUnit").value = f;
+    convert(); scheduleXP();
+  });
+  ["torque", "torqueUnit", "rpm", "speedUnit", "powerUnit"].forEach(id => {
+    $(id).addEventListener("input", calcMech);
+    $(id).addEventListener("change", () => { calcMech(); scheduleXP(); });
+  });
+  ["torque", "rpm"].forEach(id => $(id).addEventListener("input", scheduleXP));
+
+  $("year").textContent = new Date().getFullYear();
+  buildTabs();
+  selectCategory("Length");
+  renderHUD();
+</script>
+</body>
+</html>
